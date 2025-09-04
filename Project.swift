@@ -10,13 +10,19 @@ let project = Project(
             bundleId: "bbb.com.To-Do-List",
             deploymentTargets: .iOS("16.0"),
             infoPlist: .file(path: "Sources/Info.plist"),
-            sources: ["Sources/**"],
+            sources: [
+                "Sources/**",
+                "Features/**",
+                "Shared/**"
+            ],
             resources: [
                 "Resources/Assets.xcassets",
-                "Resources/Base.lproj/**",
-                "Resources/To_Do_List.xcdatamodeld"
+                "Resources/To_Do_List.xcdatamodeld",
+                "Resources/**"
             ],
-            dependencies: []
+            dependencies: [
+                .external(name: "SnapKit")
+            ]
         )
     ]
 )

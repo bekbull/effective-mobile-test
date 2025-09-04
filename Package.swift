@@ -8,9 +8,7 @@ let package = Package(
     ],
     products: [],
     dependencies: [
-        // Add your external dependencies here
-        // Example:
-        // .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.0.0"),
+        .package(url: "https://github.com/SnapKit/SnapKit.git", from: "5.0.0"),
     ],
     targets: []
 )
