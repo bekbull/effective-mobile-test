@@ -10,6 +10,9 @@ final class TaskTableViewCell: UITableViewCell {
         return view
     }()
     
+    private var titleLeadingWithIcon: Constraint?
+    private var titleLeadingWithoutIcon: Constraint?
+    
     // MARK: - UI Components
     private lazy var cardView: UIView = {
         let view = UIView()
@@ -33,7 +36,8 @@ final class TaskTableViewCell: UITableViewCell {
         let label = UILabel()
         label.font = .systemFont(ofSize: 16, weight: .medium)
         label.textColor = .label
-        label.numberOfLines = 0
+        label.numberOfLines = 1
+        label.lineBreakMode = .byTruncatingTail
         return label
     }()
     
@@ -41,7 +45,8 @@ final class TaskTableViewCell: UITableViewCell {
         let label = UILabel()
         label.font = .systemFont(ofSize: 14, weight: .regular)
         label.textColor = .secondaryLabel
-        label.numberOfLines = 3
+        label.numberOfLines = 2
+        label.lineBreakMode = .byTruncatingTail
         return label
     }()
     
@@ -72,6 +77,8 @@ final class TaskTableViewCell: UITableViewCell {
         dateLabel.textColor = .tertiaryLabel
         statusImageView.image = UIImage(systemName: "circle")
         statusImageView.tintColor = .systemGray3
+        statusImageView.isHidden = false
+        statusImageView.alpha = 1
         // Restore default constraints: date below details
         dateLabel.snp.remakeConstraints { make in
             make.leading.equalTo(titleLabel)
@@ -80,6 +87,10 @@ final class TaskTableViewCell: UITableViewCell {
             make.bottom.equalToSuperview().offset(-16)
         }
         separatorView.isHidden = false
+        separatorView.alpha = 1
+        // Default: show icon and use with-icon leading
+        titleLeadingWithoutIcon?.deactivate()
+        titleLeadingWithIcon?.activate()
     }
 
     // MARK: - Setup
@@ -107,6 +118,7 @@ final class TaskTableViewCell: UITableViewCell {
     private func setupConstraints() {
         cardView.snp.makeConstraints { make in
             make.top.bottom.equalToSuperview().inset(6)
+            make.leading.trailing.equalToSuperview()
         }
         
         statusImageView.snp.makeConstraints { make in
@@ -116,7 +128,9 @@ final class TaskTableViewCell: UITableViewCell {
         }
         
         titleLabel.snp.makeConstraints { make in
-            make.leading.equalTo(statusImageView.snp.trailing).offset(12)
+            titleLeadingWithIcon = make.leading.equalTo(statusImageView.snp.trailing).offset(12).constraint
+            titleLeadingWithoutIcon = make.leading.equalToSuperview().offset(16).constraint
+            titleLeadingWithoutIcon?.deactivate()
             make.trailing.equalToSuperview().offset(-16)
             make.top.equalToSuperview().offset(16)
         }
@@ -145,6 +159,13 @@ final class TaskTableViewCell: UITableViewCell {
     // MARK: - Configuration
     func configure(with task: TaskEntity) {
         currentTask = task
+        // Ensure default layout state for fresh cells (not yet reused)
+        titleLeadingWithoutIcon?.deactivate()
+        titleLeadingWithIcon?.activate()
+        statusImageView.isHidden = false
+        statusImageView.alpha = 1
+        separatorView.isHidden = false
+        separatorView.alpha = 1
         titleLabel.text = task.todo
         
         if let details = task.details, !details.isEmpty {
@@ -207,6 +228,30 @@ final class TaskTableViewCell: UITableViewCell {
     
     func setSeparatorHidden(_ hidden: Bool) {
         separatorView.isHidden = hidden
+    }
+    
+    func setStatusIconHiddenAndShift(_ hidden: Bool) {
+        // Prepare for animation
+        if !hidden {
+            statusImageView.isHidden = false
+            separatorView.isHidden = false
+        }
+        if hidden {
+            titleLeadingWithIcon?.deactivate()
+            titleLeadingWithoutIcon?.activate()
+        } else {
+            titleLeadingWithoutIcon?.deactivate()
+            titleLeadingWithIcon?.activate()
+        }
+        setNeedsLayout()
+        UIView.animate(withDuration: 0.22, delay: 0, usingSpringWithDamping: 0.95, initialSpringVelocity: 0.4, options: [.curveEaseInOut]) {
+            self.statusImageView.alpha = hidden ? 0 : 1
+            self.separatorView.alpha = hidden ? 0 : 1
+            self.cardView.layoutIfNeeded()
+        } completion: { _ in
+            self.statusImageView.isHidden = hidden
+            self.separatorView.isHidden = hidden
+        }
     }
 }
 

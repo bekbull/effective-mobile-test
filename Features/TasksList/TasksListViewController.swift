@@ -4,17 +4,18 @@ import SnapKit
 final class TasksListViewController: UIViewController {
     
     // MARK: - UI Components
-    private lazy var searchBar: UISearchBar = {
-        let searchBar = UISearchBar()
-        searchBar.delegate = self
-        searchBar.placeholder = "Search"
-        searchBar.searchBarStyle = .minimal
-        searchBar.backgroundColor = .clear
-        searchBar.barTintColor = .clear
-        searchBar.searchTextField.backgroundColor = .tertiarySystemBackground
-        searchBar.searchTextField.layer.cornerRadius = 10
-        searchBar.searchTextField.textColor = .label
-        return searchBar
+    private lazy var searchController: UISearchController = {
+        let controller = UISearchController(searchResultsController: nil)
+        controller.searchBar.delegate = self
+        controller.searchBar.placeholder = "Search"
+        controller.searchBar.searchBarStyle = .minimal
+        controller.searchBar.backgroundColor = .clear
+        controller.searchBar.searchTextField.backgroundColor = .tertiarySystemBackground
+        controller.searchBar.searchTextField.layer.cornerRadius = 10
+        controller.searchBar.searchTextField.textColor = .label
+        controller.hidesNavigationBarDuringPresentation = false
+        controller.obscuresBackgroundDuringPresentation = false
+        return controller
     }()
     
     private lazy var tableView: UITableView = {
@@ -49,7 +50,7 @@ final class TasksListViewController: UIViewController {
         view.backgroundColor = .secondarySystemBackground
         return view
     }()
-
+    
     private lazy var bottomTopSeparator: UIView = {
         let view = UIView()
         view.backgroundColor = .separator
@@ -97,17 +98,18 @@ final class TasksListViewController: UIViewController {
         view.backgroundColor = .systemBackground
         title = "Задачи"
         
-        // Setup navigation bar with modern styling
         navigationController?.navigationBar.prefersLargeTitles = true
-        navigationItem.largeTitleDisplayMode = .always
         
-        // Setup table view
+        navigationItem.searchController = searchController
+        
         tableView.backgroundColor = .clear
         tableView.separatorStyle = .none
-        tableView.showsVerticalScrollIndicator = false
+
+        tableView.contentInsetAdjustmentBehavior = .automatic
+        if #available(iOS 15.0, *) {
+            tableView.sectionHeaderTopPadding = 0
+        }
         
-        // Add subviews
-        view.addSubview(searchBar)
         view.addSubview(tableView)
         view.addSubview(bottomContainerView)
         view.addSubview(emptyStateLabel)
@@ -117,18 +119,12 @@ final class TasksListViewController: UIViewController {
         bottomContainerView.addSubview(addTaskButton)
         bottomContainerView.addSubview(bottomTopSeparator)
         
-        // Setup constraints
         setupConstraints()
     }
     
     private func setupConstraints() {
-        searchBar.snp.makeConstraints { make in
-            make.top.equalTo(view.safeAreaLayoutGuide)
-            make.leading.trailing.equalToSuperview()
-        }
-        
         tableView.snp.makeConstraints { make in
-            make.top.equalTo(searchBar.snp.bottom)
+            make.top.equalTo(view.safeAreaLayoutGuide)
             make.leading.trailing.equalToSuperview()
             make.bottom.equalTo(bottomContainerView.snp.top)
         }
@@ -143,7 +139,7 @@ final class TasksListViewController: UIViewController {
             make.centerX.equalToSuperview()
             make.top.equalToSuperview().offset(12)
         }
-
+        
         bottomTopSeparator.snp.makeConstraints { make in
             make.top.leading.trailing.equalToSuperview()
             make.height.equalTo(1.0 / UIScreen.main.scale)
@@ -216,7 +212,6 @@ extension TasksListViewController: TasksListViewProtocol {
     
     private func updateTaskCounter() {
         let totalTasks = tasks.count
-        let completedTasks = tasks.filter { $0.completed }.count
         
         if totalTasks == 0 {
             taskCountLabel.text = "Нет задач"
@@ -275,11 +270,11 @@ extension TasksListViewController: UITableViewDelegate {
         
         return UISwipeActionsConfiguration(actions: [deleteAction, toggleAction])
     }
-
+    
     // Context menu on long press (iOS 13+)
     func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
         let task = tasks[indexPath.row]
-        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+        return UIContextMenuConfiguration(identifier: indexPath as NSCopying, previewProvider: nil) { [weak self] _ in
             guard let self = self else { return UIMenu() }
             let edit = UIAction(title: "Редактировать", image: UIImage(systemName: "square.and.pencil")) { _ in
                 self.presenter.didTapEditTask(task)
@@ -291,6 +286,35 @@ extension TasksListViewController: UITableViewDelegate {
                 self.confirmDeleteTask(task)
             }
             return UIMenu(title: "", children: [edit, share, delete])
+        }
+    }
+    
+    func tableView(_ tableView: UITableView, previewForHighlightingContextMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+        guard let indexPath = configuration.identifier as? IndexPath,
+              let cell = tableView.cellForRow(at: indexPath) as? TaskTableViewCell else { return nil }
+        cell.setStatusIconHiddenAndShift(true)
+        let params = UIPreviewParameters()
+        params.backgroundColor = .secondarySystemBackground
+        return UITargetedPreview(view: cell.contentView, parameters: params)
+    }
+    
+    func tableView(_ tableView: UITableView, previewForDismissingContextMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
+        if let indexPath = configuration.identifier as? IndexPath,
+           let cell = tableView.cellForRow(at: indexPath) as? TaskTableViewCell {
+            cell.setStatusIconHiddenAndShift(false)
+        }
+        return nil
+    }
+    
+    // Restore layout if the interaction ends early (e.g., scroll cancels long-press)
+    func tableView(_ tableView: UITableView, willEndContextMenuInteraction configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionAnimating?) {
+        if let indexPath = configuration.identifier as? IndexPath,
+           let cell = tableView.cellForRow(at: indexPath) as? TaskTableViewCell {
+            cell.setStatusIconHiddenAndShift(false)
+        } else {
+            tableView.visibleCells.forEach { cell in
+                (cell as? TaskTableViewCell)?.setStatusIconHiddenAndShift(false)
+            }
         }
     }
     

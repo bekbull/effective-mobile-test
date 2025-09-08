@@ -7,6 +7,7 @@ final class TaskEditorViewController: UIViewController {
     private lazy var scrollView: UIScrollView = {
         let scrollView = UIScrollView()
         scrollView.keyboardDismissMode = .onDrag
+        scrollView.alwaysBounceVertical = true
         return scrollView
     }()
     
@@ -15,36 +16,39 @@ final class TaskEditorViewController: UIViewController {
         return view
     }()
     
-    private lazy var titleTextField: UITextField = {
-        let textField = UITextField()
-        textField.placeholder = "Название задачи"
-        textField.font = .systemFont(ofSize: 18, weight: .medium)
-        textField.textColor = .label
-        textField.backgroundColor = .secondarySystemBackground
-        textField.layer.cornerRadius = 12
-        textField.addTarget(self, action: #selector(titleTextChanged), for: .editingChanged)
-        
-        // Add padding
-        let paddingView = UIView(frame: CGRect(x: 0, y: 0, width: 16, height: 0))
-        textField.leftView = paddingView
-        textField.leftViewMode = .always
-        textField.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 16, height: 0))
-        textField.rightViewMode = .always
-        
-        return textField
+    private lazy var titleTextView: UITextView = {
+        let textView = UITextView()
+        textView.font = .systemFont(ofSize: 28, weight: .bold)
+        textView.textColor = .label
+        textView.backgroundColor = .clear
+        textView.textContainerInset = UIEdgeInsets(top: 16, left: 16, bottom: 8, right: 16)
+        textView.textContainer.lineFragmentPadding = 0
+        textView.isScrollEnabled = false
+        textView.delegate = self
+        textView.text = "Название"
+        textView.textColor = .placeholderText
+        return textView
     }()
     
     private lazy var detailsTextView: UITextView = {
         let textView = UITextView()
-        textView.font = .systemFont(ofSize: 16, weight: .regular)
+        textView.font = .systemFont(ofSize: 17, weight: .regular)
         textView.textColor = .label
-        textView.backgroundColor = .secondarySystemBackground
-        textView.layer.cornerRadius = 12
-        textView.textContainerInset = UIEdgeInsets(top: 16, left: 12, bottom: 16, right: 12)
-        textView.text = "Описание задачи..."
+        textView.backgroundColor = .clear
+        textView.textContainerInset = UIEdgeInsets(top: 0, left: 16, bottom: 16, right: 16)
+        textView.textContainer.lineFragmentPadding = 0
+        textView.text = "Заметки"
         textView.textColor = .placeholderText
         textView.delegate = self
         return textView
+    }()
+
+    private lazy var createdAtLabel: UILabel = {
+        let label = UILabel()
+        label.font = .systemFont(ofSize: 13, weight: .regular)
+        label.textColor = .tertiaryLabel
+        label.textAlignment = .left
+        return label
     }()
     
     private lazy var loadingIndicator: UIActivityIndicatorView = {
@@ -66,45 +70,31 @@ final class TaskEditorViewController: UIViewController {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        titleTextField.becomeFirstResponder()
+        titleTextView.becomeFirstResponder()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        presenter.willDisappear()
     }
     
     // MARK: - Setup
     private func setupUI() {
         view.backgroundColor = .systemBackground
         
-        // Setup navigation bar with modern styling
-        let cancelButton = UIBarButtonItem(
-            image: UIImage(systemName: "chevron.left"),
-            style: .plain,
-            target: self,
-            action: #selector(cancelTapped)
-        )
-        cancelButton.tintColor = .systemYellow
-        navigationItem.leftBarButtonItem = cancelButton
+        navigationItem.largeTitleDisplayMode = .never
         
-        let saveButton = UIBarButtonItem(
-            title: "Готово",
-            style: .done,
-            target: self,
-            action: #selector(saveTapped)
-        )
-        saveButton.tintColor = .systemYellow
-        navigationItem.rightBarButtonItem = saveButton
-        
-        // Add subviews
         view.addSubview(scrollView)
         scrollView.addSubview(contentView)
         
-        contentView.addSubview(titleTextField)
+        contentView.addSubview(titleTextView)
+        contentView.addSubview(createdAtLabel)
         contentView.addSubview(detailsTextView)
         
         view.addSubview(loadingIndicator)
         
-        // Setup constraints
         setupConstraints()
         
-        // Setup keyboard handling
         setupKeyboardHandling()
     }
     
@@ -118,17 +108,20 @@ final class TaskEditorViewController: UIViewController {
             make.width.equalToSuperview()
         }
         
-        titleTextField.snp.makeConstraints { make in
-            make.top.equalToSuperview().offset(20)
-            make.leading.trailing.equalToSuperview().inset(16)
-            make.height.equalTo(52)
+        titleTextView.snp.makeConstraints { make in
+            make.leading.trailing.top.equalToSuperview()
         }
         
         detailsTextView.snp.makeConstraints { make in
-            make.top.equalTo(titleTextField.snp.bottom).offset(16)
-            make.leading.trailing.equalToSuperview().inset(16)
-            make.height.equalTo(200)
+            make.top.equalTo(createdAtLabel.snp.bottom).offset(8)
+            make.leading.trailing.equalToSuperview()
+            make.height.greaterThanOrEqualTo(200)
             make.bottom.equalToSuperview().offset(-20)
+        }
+
+        createdAtLabel.snp.makeConstraints { make in
+            make.leading.trailing.equalToSuperview().inset(16)
+            make.top.equalTo(titleTextView.snp.bottom).offset(2)
         }
         
         loadingIndicator.snp.makeConstraints { make in
@@ -153,27 +146,8 @@ final class TaskEditorViewController: UIViewController {
     }
     
     // MARK: - Actions
-    @objc private func cancelTapped() {
-        presenter.didTapCancel()
-    }
-    
-    @objc private func saveTapped() {
-        let title = titleTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        var details = detailsTextView.text?.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Check if details is placeholder text
-        if details == "Описание задачи..." || detailsTextView.textColor == .placeholderText {
-            details = nil
-        }
-        
-        let finalDetails = details?.isEmpty == true ? nil : details
-        
-        presenter.didTapSave(title: title, details: finalDetails)
-    }
-    
-    @objc private func titleTextChanged() {
-        let text = titleTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        presenter.didChangeTitleText(text)
+    @objc private func backTapped() {
+        presenter.didTapBack()
     }
     
     @objc private func keyboardWillShow(_ notification: Notification) {
@@ -196,17 +170,33 @@ final class TaskEditorViewController: UIViewController {
 // MARK: - UITextViewDelegate
 extension TaskEditorViewController: UITextViewDelegate {
     func textViewDidBeginEditing(_ textView: UITextView) {
-        if textView.textColor == .placeholderText {
+        if textView === titleTextView && textView.textColor == .placeholderText {
+            textView.text = ""
+            textView.textColor = .label
+        } else if textView === detailsTextView && textView.textColor == .placeholderText {
             textView.text = ""
             textView.textColor = .label
         }
     }
     
     func textViewDidEndEditing(_ textView: UITextView) {
-        if textView.text.isEmpty {
-            textView.text = "Описание задачи..."
-            textView.textColor = .placeholderText
+        if textView === titleTextView {
+            if textView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                textView.text = "Название"
+                textView.textColor = .placeholderText
+            }
+        } else if textView === detailsTextView {
+            if textView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                textView.text = "Заметки"
+                textView.textColor = .placeholderText
+            }
         }
+    }
+
+    func textViewDidChange(_ textView: UITextView) {
+        let title = titleTextView.text ?? ""
+        let details = detailsTextView.text ?? ""
+        presenter.didChange(title: title, details: details)
     }
 }
 
@@ -217,24 +207,41 @@ extension TaskEditorViewController: TaskEditorViewProtocol {
         
         switch mode {
         case .add:
-            title = "Новая задача"
+            title = ""
+            titleTextView.text = "Название"
+            titleTextView.textColor = .placeholderText
+            detailsTextView.text = "Заметки"
+            detailsTextView.textColor = .placeholderText
+            let formatter = DateFormatter()
+            formatter.dateFormat = "dd/MM/yy"
+            createdAtLabel.text = formatter.string(from: Date())
             
         case .edit(let task):
-            title = "Редактировать"
-            titleTextField.text = task.todo
+            title = ""
+            if let title = task.todo, !title.isEmpty {
+                titleTextView.text = title
+                titleTextView.textColor = .label
+            }
             if let details = task.details, !details.isEmpty {
                 detailsTextView.text = details
                 detailsTextView.textColor = .label
             }
+            let formatter = DateFormatter()
+            formatter.dateFormat = "dd/MM/yy"
+            if let createdAt = task.createdAt {
+                createdAtLabel.text = formatter.string(from: createdAt)
+            } else {
+                createdAtLabel.text = formatter.string(from: Date())
+            }
         }
         
         // Initial validation
-        titleTextChanged()
+        // No explicit save button; validation can be handled on pop if needed
     }
     
-    func showSaveButton(enabled: Bool) {
+    func popView() {
         DispatchQueue.main.async {
-            self.navigationItem.rightBarButtonItem?.isEnabled = enabled
+            self.navigationController?.popViewController(animated: true)
         }
     }
     
@@ -257,22 +264,6 @@ extension TaskEditorViewController: TaskEditorViewProtocol {
             let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             self.present(alert, animated: true)
-        }
-    }
-    
-    func showSuccess(_ message: String) {
-        DispatchQueue.main.async {
-            let alert = UIAlertController(title: "Success", message: message, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
-                self.dismissView()
-            })
-            self.present(alert, animated: true)
-        }
-    }
-    
-    func dismissView() {
-        DispatchQueue.main.async {
-            self.dismiss(animated: true)
         }
     }
 }

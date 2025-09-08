@@ -26,7 +26,7 @@ extension TaskEditorRouter: TaskEditorRouterProtocol {
         return view
     }
     
-    func dismissView() {
-        viewController?.dismiss(animated: true)
+    func popView() {
+        viewController?.navigationController?.popViewController(animated: true)
     }
 }

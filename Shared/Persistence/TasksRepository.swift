@@ -6,6 +6,7 @@ protocol TasksRepositoryProtocol {
     func createTask(title: String, details: String?) -> TaskEntity
     func updateTask(_ task: TaskEntity, title: String, details: String?, completed: Bool)
     func deleteTask(_ task: TaskEntity)
+    func deleteAllTasks()
     func searchTasks(query: String) -> [TaskEntity]
     func seedInitialData() async
     func hasSeededData() -> Bool
@@ -60,6 +61,26 @@ final class TasksRepository: TasksRepositoryProtocol {
     func deleteTask(_ task: TaskEntity) {
         coreDataStack.context.delete(task)
         coreDataStack.saveContext()
+    }
+    
+    func deleteAllTasks() {
+        // Use explicit entity name to avoid empty entityName in request
+        let fetchRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "TaskEntity")
+        let deleteRequest = NSBatchDeleteRequest(fetchRequest: fetchRequest)
+        deleteRequest.resultType = .resultTypeObjectIDs
+        
+        let backgroundContext = coreDataStack.backgroundContext
+        backgroundContext.performAndWait {
+            do {
+                let result = try backgroundContext.execute(deleteRequest) as? NSBatchDeleteResult
+                if let deletedObjectIDs = result?.result as? [NSManagedObjectID], !deletedObjectIDs.isEmpty {
+                    let changes: [AnyHashable: Any] = [NSDeletedObjectsKey: deletedObjectIDs]
+                    NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: [coreDataStack.context])
+                }
+            } catch {
+                print("Error deleting all tasks: \(error)")
+            }
+        }
     }
     
     func searchTasks(query: String) -> [TaskEntity] {

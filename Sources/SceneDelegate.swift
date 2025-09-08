@@ -15,11 +15,16 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = (scene as? UIWindowScene) else { return }
         
+        // TEMP: Wipe all tasks once. Run the app, then comment this line.
+        // TasksRepository().deleteAllTasks()
+
         window = UIWindow(windowScene: windowScene)
         
         // Setup root view controller using VIPER
         let tasksListVC = TasksListRouter.createModule()
         let navigationController = UINavigationController(rootViewController: tasksListVC)
+        
+        navigationController.navigationBar.tintColor = .systemYellow
         
         window?.rootViewController = navigationController
         window?.makeKeyAndVisible()

@@ -25,13 +25,11 @@ extension TasksListRouter: TasksListRouterProtocol {
     
     func navigateToAddTask() {
         let taskEditorVC = TaskEditorRouter.createModule(for: .add)
-        let navigationController = UINavigationController(rootViewController: taskEditorVC)
-        viewController?.present(navigationController, animated: true)
+        viewController?.navigationController?.pushViewController(taskEditorVC, animated: true)
     }
     
     func navigateToEditTask(_ task: TaskEntity) {
         let taskEditorVC = TaskEditorRouter.createModule(for: .edit(task))
-        let navigationController = UINavigationController(rootViewController: taskEditorVC)
-        viewController?.present(navigationController, animated: true)
+        viewController?.navigationController?.pushViewController(taskEditorVC, animated: true)
     }
 }

@@ -6,6 +6,9 @@ final class TaskEditorPresenter {
     var router: TaskEditorRouterProtocol!
     
     private var mode: TaskEditorMode = .add
+    private var currentTask: TaskEntity?
+    private var debounceWorkItem: DispatchWorkItem?
+    private let debounceInterval: TimeInterval = 0.4
     
     func configure(mode: TaskEditorMode) {
         self.mode = mode
@@ -18,30 +21,43 @@ extension TaskEditorPresenter: TaskEditorPresenterProtocol {
         view?.setupForMode(mode)
     }
     
-    func didTapSave(title: String, details: String?) {
-        guard !title.isEmpty else {
-            view?.showError("Please enter a task title")
-            return
-        }
-        
-        view?.showLoading()
-        
-        switch mode {
-        case .add:
-            interactor.saveTask(title: title, details: details)
-            
-        case .edit(let task):
-            interactor.updateTask(task, title: title, details: details)
-        }
+    func didTapBack() {
+        router.popView()
     }
     
-    func didTapCancel() {
-        router.dismissView()
+    func didChange(title: String, details: String) {
+        let titleTrim = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let detailsTrim = details.trimmingCharacters(in: .whitespacesAndNewlines)
+        debounceWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            switch self.mode {
+            case .add:
+                if self.currentTask == nil {
+                    // Create draft only if there is meaningful input
+                    guard !titleTrim.isEmpty || !detailsTrim.isEmpty else { return }
+                    self.currentTask = self.interactor.createDraftIfNeeded(title: titleTrim.isEmpty ? "" : titleTrim, details: detailsTrim.isEmpty ? nil : detailsTrim)
+                }
+                if let task = self.currentTask {
+                    self.interactor.updateTask(task, title: titleTrim, details: detailsTrim.isEmpty ? nil : detailsTrim)
+                }
+            case .edit(let task):
+                self.interactor.updateTask(task, title: titleTrim, details: detailsTrim.isEmpty ? nil : detailsTrim)
+            }
+        }
+        debounceWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + debounceInterval, execute: work)
     }
     
-    func didChangeTitleText(_ text: String) {
-        let isValid = !text.isEmpty
-        view?.showSaveButton(enabled: isValid)
+    func willDisappear() {
+        debounceWorkItem?.perform()
+        debounceWorkItem = nil
+        if case .add = mode, let task = currentTask {
+            // If both fields ended up empty, remove draft
+            if (task.todo ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (task.details ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                interactor.deleteTask(task)
+            }
+        }
     }
 }
 
@@ -49,7 +65,6 @@ extension TaskEditorPresenter: TaskEditorPresenterProtocol {
 extension TaskEditorPresenter: TaskEditorInteractorOutputProtocol {
     func didSaveTask() {
         view?.hideLoading()
-        view?.showSuccess("Task created successfully")
     }
     
     func didFailToSaveTask(_ error: Error) {
@@ -59,7 +74,6 @@ extension TaskEditorPresenter: TaskEditorInteractorOutputProtocol {
     
     func didUpdateTask() {
         view?.hideLoading()
-        view?.showSuccess("Task updated successfully")
     }
     
     func didFailToUpdateTask(_ error: Error) {
