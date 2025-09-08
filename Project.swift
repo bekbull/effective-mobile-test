@@ -1,13 +1,13 @@
 import ProjectDescription
 
 let project = Project(
-    name: "ToDoList",
+    name: "Tasks",
     targets: [
         .target(
-            name: "ToDoList",
+            name: "Tasks",
             destinations: .iOS,
             product: .app,
-            bundleId: "bbb.com.To-Do-List",
+            bundleId: "bbb.com.Tasks",
             deploymentTargets: .iOS("16.0"),
             infoPlist: .file(path: "Sources/Info.plist"),
             sources: [
@@ -17,8 +17,8 @@ let project = Project(
             ],
             resources: [
                 "Resources/Assets.xcassets",
-                "Resources/To_Do_List.xcdatamodeld",
-                "Resources/**"
+                "Resources/Base.lproj/**",
+                "Resources/Tasks.xcdatamodeld"
             ],
             dependencies: [
                 .external(name: "SnapKit")
